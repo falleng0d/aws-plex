@@ -4,3 +4,5 @@ terraform.tfstate.backup
 .terraform.tfstate.lock.info
 auth
 .DS_Store
+.ssh/*
+.terraform.lock.hcl
