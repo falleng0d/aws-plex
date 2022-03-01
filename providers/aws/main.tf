@@ -1,7 +1,26 @@
+// Defines where terraform will store its state
+terraform {
+  // Manually create this bucket before starting terraform for the first time
+  backend "s3" {
+    bucket  = "plexverse-state"
+    key     = "terraform"
+    region  = "us-east-1"
+    encrypt = true
+    profile = "plex"
+  }
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 2.57"
+    }
+  }
+}
+
+# Configure the AWS Provider
 provider "aws" {
-    region          = var.region
-    shared_credentials_file = file(var.auth_file_path)
-    version         = "~> 2.57"
+  profile = "plex"
+  region = var.region
 }
 
 resource "random_pet" "default" {
@@ -20,9 +39,26 @@ resource "aws_key_pair" "default" {
   public_key = file(var.public_key_path)
 }
 
+# Create a VPC
+resource "aws_vpc" "default" {
+  cidr_block = "172.20.0.0/16"
+
+  instance_tenancy     = "default"
+  enable_dns_support   = "true"
+  enable_dns_hostnames = "true"
+  enable_classiclink   = "false"
+
+  tags = {
+    Name = "PlexVPC"
+    Project = "Plex"
+  }
+}
+
 resource "aws_security_group" "default" {
   name        = "allow_plex"
   description = "Allow Plex-related traffic"
+  vpc_id      = aws_vpc.default.id
+
   ingress {
     description = "SSH"
     from_port   = 22
@@ -53,7 +89,7 @@ resource "aws_security_group" "default" {
     to_port     = 8080
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }  
+  }
 
   ingress {
     description = "Radarr"
@@ -61,7 +97,7 @@ resource "aws_security_group" "default" {
     to_port     = 7878
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }  
+  }
 
   ingress {
     description = "HTTPS"
@@ -69,7 +105,7 @@ resource "aws_security_group" "default" {
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }  
+  }
 
   ingress {
     description = "HTTP"
@@ -77,7 +113,7 @@ resource "aws_security_group" "default" {
     to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
-  }  
+  }
 
   egress {
     from_port   = 0
@@ -87,12 +123,24 @@ resource "aws_security_group" "default" {
   }
 }
 
+# Create Default Public Subnet
+resource "aws_subnet" "default" {
+  vpc_id                  = aws_vpc.default.id
+  cidr_block              = "172.20.10.0/24" # 24
+  map_public_ip_on_launch = true             # true
+  availability_zone       = "${var.region}a"
+
+  tags = {
+    Name = "DefaultPublicSubnet"
+  }
+}
+
 data "aws_ami" "ubuntu" {
   most_recent = true
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-bionic-18.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-impish-21.10-amd64-server-*"]
   }
 
   filter {
@@ -107,12 +155,16 @@ resource "aws_instance" "default" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.machine_type
   key_name = aws_key_pair.default.key_name
+
   vpc_security_group_ids = [aws_security_group.default.id]
+  subnet_id              = aws_subnet.default.id
+
   root_block_device {
       volume_type = "gp2"
       volume_size = "256"
       delete_on_termination = true
   }
+
   tags = {
     Name = "plexverse"
   }
