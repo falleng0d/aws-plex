@@ -7,3 +7,4 @@ auth
 .ssh
 .terraform.lock.hcl
 .idea
+aws_creds.csv

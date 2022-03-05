@@ -1,5 +1,4 @@
 resource "null_resource" "default" {
-
   provisioner "remote-exec" {
     connection {
         type = "ssh"
@@ -9,9 +8,12 @@ resource "null_resource" "default" {
     }
 
     inline = [
-      "sudo apt-get update && sudo apt-get -y upgrade",
+      "silent(){ sudo DEBIAN_FRONTEND=noninteractive apt-get -qq -o Dpkg::Use-Pty=0 \"$@\" < /dev/null; }",
+      "silent update",
+      "silent upgrade",
       "sleep 15",
-      "sudo apt-get install -y software-properties-common aptdaemon"
+      "silent install software-properties-common aptdaemon"
     ]
   }
 }
+

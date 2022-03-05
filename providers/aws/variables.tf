@@ -1,3 +1,16 @@
+variable "project" {
+  default = "Plex"
+}
+
+variable "domain" {
+  default = "plex.matj.dev"
+}
+
+variable "auth_file_path" {
+	description = "Relative path to the AWS credentials CSV file"
+	default = "./aws_creds.csv"
+}
+
 variable "region" {
   description = "AWS region"
   default     = "sa-east-1"

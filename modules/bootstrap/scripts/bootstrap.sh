@@ -1,7 +1,7 @@
 #!/bin/bash
 
 apt_wait () {
-  while sudo fuser /var/lib/dpkg/lock >/dev/null 2>&1 ; do
+  while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 ; do
     sleep 1
   done
   while sudo fuser /var/lib/apt/lists/lock >/dev/null 2>&1 ; do

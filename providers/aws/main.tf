@@ -23,17 +23,6 @@ provider "aws" {
   region = var.region
 }
 
-resource "random_pet" "default" {
-    length          = 3
-    separator       = "-"
-}
-
-resource "aws_s3_bucket" "default" {
-  bucket     		= "plexverse-${random_pet.default.id}"
-  acl               = "private"
-  force_destroy		= true
-}
-
 resource "aws_key_pair" "default" {
   key_name   = "plexverse-local-key"
   public_key = file(var.public_key_path)
@@ -43,14 +32,9 @@ resource "aws_key_pair" "default" {
 resource "aws_vpc" "default" {
   cidr_block = "172.20.0.0/16"
 
-  instance_tenancy     = "default"
-  enable_dns_support   = "true"
-  enable_dns_hostnames = "true"
-  enable_classiclink   = "false"
-
   tags = {
-    Name = "PlexVPC"
-    Project = "Plex"
+    Name = "${var.project}VPC"
+    Project = var.project
   }
 }
 
@@ -123,6 +107,29 @@ resource "aws_security_group" "default" {
   }
 }
 
+# Create Internet Gateway
+resource "aws_internet_gateway" "default" {
+  vpc_id = aws_vpc.default.id
+
+  tags = {
+    Name = "${var.project}InternetGW"
+  }
+}
+
+# Create route table and association
+resource "aws_default_route_table" "default" {
+  default_route_table_id = aws_vpc.default.default_route_table_id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.default.id
+  }
+
+  tags = {
+    Name = "${var.project}RouteTable"
+  }
+}
+
 # Create Default Public Subnet
 resource "aws_subnet" "default" {
   vpc_id                  = aws_vpc.default.id
@@ -132,6 +139,17 @@ resource "aws_subnet" "default" {
 
   tags = {
     Name = "DefaultPublicSubnet"
+  }
+}
+
+// Create an AWS cloudwatch log group
+resource "aws_cloudwatch_log_group" "default" {
+  name              = "awslogs-${var.project}"
+  retention_in_days = 1
+
+  tags = {
+    Project     = var.project
+    Environment = "production"
   }
 }
 
@@ -151,13 +169,24 @@ data "aws_ami" "ubuntu" {
   owners = ["099720109477"] # Canonical
 }
 
+resource "aws_eip" "default" {
+  vpc = true
+  tags = {
+    Name = "${var.project}Eip"
+  }
+
+  depends_on = [aws_internet_gateway.default]
+}
+
 resource "aws_instance" "default" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.machine_type
   key_name = aws_key_pair.default.key_name
+  user_data = data.template_cloudinit_config.default.rendered
 
   vpc_security_group_ids = [aws_security_group.default.id]
   subnet_id              = aws_subnet.default.id
+  iam_instance_profile   = aws_iam_instance_profile.instance-profile.id
 
   root_block_device {
       volume_type = "gp2"
@@ -170,12 +199,17 @@ resource "aws_instance" "default" {
   }
 }
 
-module "bootstrap" {
+resource "aws_eip_association" "default" {
+  instance_id   = aws_instance.default.id
+  allocation_id = aws_eip.default.id
+}
+
+/*module "bootstrap" {
     source          = "../../modules/bootstrap"
     private_key_path= var.private_key_path
     host            = aws_instance.default.public_ip
     user            = "ubuntu"
-}
+}*/
 
 module "goofys" {
     source          = "../../modules/services/goofys"
@@ -186,14 +220,6 @@ module "goofys" {
     auth_secret     = csvdecode(file(var.auth_file_path))[0]["Secret access key"]
     bucket          = "plexverse-${random_pet.default.id}"
     user            = "ubuntu"
-
-}
-
-module "nginx" {
-    source          = "../../modules/services/nginx"
-    private_key_path= var.private_key_path
-    host            = aws_instance.default.public_ip
-    user            = "ubuntu"
 }
 
 module "plex" {
@@ -203,23 +229,24 @@ module "plex" {
     user            = "ubuntu"
 }
 
-module "sabnzbd" {
+module "sonarr" {
+  source          = "../../modules/apps/sonarr"
+  private_key_path= var.private_key_path
+  host            = aws_instance.default.public_ip
+  user            = "ubuntu"
+}
+
+/*module "sabnzbd" {
     source          = "../../modules/apps/sabnzbd"
     private_key_path= var.private_key_path
     host            = aws_instance.default.public_ip
     user            = "ubuntu"
-}
+}*/
 
-module "sonarr" {
-    source          = "../../modules/apps/sonarr"
-    private_key_path= var.private_key_path
-    host            = aws_instance.default.public_ip
-    user            = "ubuntu"
-}
 
-module "radarr" {
+/*module "radarr" {
     source          = "../../modules/apps/radarr"
     private_key_path= var.private_key_path
     host            = aws_instance.default.public_ip
     user            = "ubuntu"
-}
+}*/
