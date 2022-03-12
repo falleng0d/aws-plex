@@ -15,7 +15,9 @@ resource "aws_iam_role" "instance-role" {
   ]
 }
 EOF
-
+  tags = {
+    Project = var.project
+  }
 }
 
 resource "aws_iam_role_policy" "instance-role-policy" {
@@ -48,7 +50,22 @@ resource "aws_iam_instance_profile" "instance-profile" {
   role = aws_iam_role.instance-role.name
 }
 
-resource "aws_iam_role_policy_attachment" "ec2-allow-outline-s3-policy-attach" {
+resource "aws_iam_role_policy_attachment" "ec2-allow-s3-policy-attach" {
   role       = aws_iam_role.instance-role.name
+  policy_arn = aws_iam_policy.allow-s3.arn
+}
+
+## Plex User
+resource "aws_iam_user" "default" {
+  name = "plex"
+  path = "/plex/"
+
+  tags = {
+    Project = var.project
+  }
+}
+
+resource "aws_iam_user_policy_attachment" "plex-allow-s3-policy-attach" {
+  user       = aws_iam_user.default.name
   policy_arn = aws_iam_policy.allow-s3.arn
 }

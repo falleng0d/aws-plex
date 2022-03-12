@@ -1,3 +1,7 @@
+variable "private_key_path" {}
+variable "host" {}
+variable "user" {}
+
 resource "null_resource" "default" {
   provisioner "file" {
     connection {
@@ -9,7 +13,7 @@ resource "null_resource" "default" {
 
     source      = "../../modules/apps/sonarr/scripts/sonarr.sh"
     destination = "/tmp/sonarr.sh"
-  }  
+  }
 
   provisioner "remote-exec" {
     connection {
@@ -18,7 +22,7 @@ resource "null_resource" "default" {
         private_key = file(var.private_key_path)
         host = var.host
     }
-  
+
     inline = [
         "sudo bash /tmp/sonarr.sh"
     ]

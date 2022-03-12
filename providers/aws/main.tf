@@ -24,7 +24,7 @@ provider "aws" {
 }
 
 resource "aws_key_pair" "default" {
-  key_name   = "plexverse-local-key"
+  key_name   = "mediaserver-local-key"
   public_key = file(var.public_key_path)
 }
 
@@ -158,7 +158,7 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-impish-21.10-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-focal-20.04-amd64-server-*"]
   }
 
   filter {
@@ -195,7 +195,7 @@ resource "aws_instance" "default" {
   }
 
   tags = {
-    Name = "plexverse"
+    Name = "mediaserver"
   }
 }
 
@@ -211,14 +211,18 @@ resource "aws_eip_association" "default" {
     user            = "ubuntu"
 }*/
 
+resource "aws_iam_access_key" "default" {
+  user    = aws_iam_user.default.name
+}
+
 module "goofys" {
     source          = "../../modules/services/goofys"
     private_key_path= var.private_key_path
     host            = aws_instance.default.public_ip
     endpoint        = "https://s3.${var.region}.amazonaws.com"
-    auth_key        = csvdecode(file(var.auth_file_path))[0]["Access key ID"]
-    auth_secret     = csvdecode(file(var.auth_file_path))[0]["Secret access key"]
-    bucket          = "plexverse-${random_pet.default.id}"
+    auth_key        = aws_iam_access_key.default.id
+    auth_secret     = aws_iam_access_key.default.secret
+    bucket          = "mediaserver-${random_pet.default.id}"
     user            = "ubuntu"
 }
 

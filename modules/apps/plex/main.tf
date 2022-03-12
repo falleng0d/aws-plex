@@ -1,5 +1,8 @@
-resource "null_resource" "default" {
+variable "private_key_path" {}
+variable "host" {}
+variable "user" {}
 
+resource "null_resource" "default" {
   provisioner "file" {
     connection {
         type = "ssh"
@@ -19,7 +22,7 @@ resource "null_resource" "default" {
         private_key = file(var.private_key_path)
         host = var.host
     }
-  
+
     inline = [
       "sudo bash /tmp/plex.sh"
     ]
